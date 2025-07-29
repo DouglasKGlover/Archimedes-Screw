@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Archimedes Screw</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #fff;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+      }
+
+      #canvas-container {
+        width: 100vw;
+        height: 100vh;
+      }
+
+      #canvas-container canvas {
+        filter: invert(1) blur(30px);
+      }
+
+      #info {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: black;
+        font-size: 14px;
+        z-index: 100;
+      }
+
+      #header {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        color: black;
+        z-index: 100;
+        font-family: Arial, sans-serif;
+      }
+
+      #header h1 {
+        font-size: 4rem;
+        margin: 0;
+        font-weight: 300;
+        letter-spacing: 0.1em;
+      }
+
+      #header h2 {
+        font-size: 1.5rem;
+        margin: 10px 0 0 0;
+        font-weight: 300;
+        letter-spacing: 0.05em;
+      }
+
+      #header h2 .bold {
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="canvas-container"></div>
+
+    <div id="header">
+      <h1>Archimedes Screw</h1>
+      <h2><span class="bold">Flow</span> like water, my friend</h2>
+    </div>
+
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls for camera movement -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- GLTFLoader for loading 3D models -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <!-- Post-processing for effects -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+
+    <script>
+      // Scene setup
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+
+      // Configure renderer
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x222222);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      // Add renderer to DOM
+      document
+        .getElementById("canvas-container")
+        .appendChild(renderer.domElement);
+
+      // Mouse tracking for subtle camera movement
+      let mouseX = 0;
+      let mouseY = 0;
+      const windowHalfX = window.innerWidth / 2;
+      const windowHalfY = window.innerHeight / 2;
+
+      document.addEventListener("mousemove", (event) => {
+        mouseX = (event.clientX - windowHalfX) / windowHalfX;
+        mouseY = (event.clientY - windowHalfY) / windowHalfY;
+      });
+
+      // Load GLTF model
+      const loader = new THREE.GLTFLoader();
+      let loadedModel = null;
+
+      loader.load(
+        "./scene.gltf", // Path to your GLTF file
+        function (gltf) {
+          // Success callback
+          loadedModel = gltf.scene;
+
+          // Enable shadows for all meshes in the model and smooth them
+          loadedModel.traverse(function (child) {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+
+              // Compute smooth vertex normals for smoother appearance
+              if (child.geometry) {
+                child.geometry.computeVertexNormals();
+                // Ensure smooth shading
+                child.material.flatShading = false;
+                child.material.needsUpdate = true;
+              }
+            }
+          });
+
+          // Add the model to the scene
+          scene.add(loadedModel);
+
+          // Optional: Center the model and scale it appropriately
+          const box = new THREE.Box3().setFromObject(loadedModel);
+          const center = box.getCenter(new THREE.Vector3());
+          const size = box.getSize(new THREE.Vector3());
+
+          // Scale the model first to fit nicely in view
+          const maxDim = Math.max(size.x, size.y, size.z);
+          const scale = 12 / maxDim; // Scaled back a bit for better view
+          loadedModel.scale.setScalar(scale);
+
+          // Recalculate bounding box after scaling
+          const scaledBox = new THREE.Box3().setFromObject(loadedModel);
+          const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+          const scaledSize = scaledBox.getSize(new THREE.Vector3());
+
+          // Center the model horizontally (X and Z) and move it down
+          loadedModel.position.x = -scaledCenter.x;
+          loadedModel.position.z = -scaledCenter.z;
+          // Center the model vertically and move it down a bit
+          loadedModel.position.y = -scaledCenter.y - 1;
+
+          console.log("GLTF model loaded successfully");
+        },
+        function (progress) {
+          // Progress callback
+          console.log(
+            "Loading progress: ",
+            (progress.loaded / progress.total) * 100 + "%"
+          );
+        },
+        function (error) {
+          // Error callback
+          console.error("Error loading GLTF model:", error);
+
+          // Fallback: create a simple cube if model fails to load
+          const geometry = new THREE.BoxGeometry(1, 1, 1);
+          const material = new THREE.MeshPhongMaterial({
+            color: 0xff0000, // Red color to indicate fallback
+            shininess: 100
+          });
+          const cube = new THREE.Mesh(geometry, material);
+          cube.castShadow = true;
+          cube.receiveShadow = true;
+          scene.add(cube);
+          loadedModel = cube;
+        }
+      );
+
+      // Add lighting
+      const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+      scene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(5, 5, 5);
+      directionalLight.castShadow = true;
+      directionalLight.shadow.mapSize.width = 2048;
+      directionalLight.shadow.mapSize.height = 2048;
+      scene.add(directionalLight);
+
+      // Position camera
+      camera.position.set(3, 3, 3);
+      camera.lookAt(0, 0, 0);
+
+      // Create colorful shader effect
+      const colorfulShader = {
+        uniforms: {
+          tDiffuse: { value: null },
+          time: { value: 0.0 },
+          intensity: { value: 0.3 }
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D tDiffuse;
+          uniform float time;
+          uniform float intensity;
+          varying vec2 vUv;
+          
+          void main() {
+            vec4 color = texture2D(tDiffuse, vUv);
+            
+            // Create colorful overlay based on position and time
+            vec2 center = vec2(0.5, 0.5);
+            float dist = distance(vUv, center);
+            
+            // Rainbow effect that moves with time
+            float r = sin(time * 2.0 + vUv.x * 6.0 + vUv.y * 4.0) * 0.5 + 0.5;
+            float g = sin(time * 2.0 + vUv.x * 6.0 + vUv.y * 4.0 + 2.094) * 0.5 + 0.5;
+            float b = sin(time * 2.0 + vUv.x * 6.0 + vUv.y * 4.0 + 4.188) * 0.5 + 0.5;
+            
+            vec3 rainbow = vec3(r, g, b);
+            
+            // Add some movement and variation
+            float wave = sin(time * 3.0 + dist * 10.0) * 0.1 + 0.9;
+            rainbow *= wave;
+            
+            // Blend with original color
+            color.rgb = mix(color.rgb, color.rgb * (1.0 + rainbow * intensity), intensity);
+            
+            gl_FragColor = color;
+          }
+        `
+      };
+
+      // Create TV grain filter shader
+      const tvGrainShader = {
+        uniforms: {
+          tDiffuse: { value: null },
+          time: { value: 0.0 },
+          grainIntensity: { value: 0.15 },
+          scanlineIntensity: { value: 0.1 }
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D tDiffuse;
+          uniform float time;
+          uniform float grainIntensity;
+          uniform float scanlineIntensity;
+          varying vec2 vUv;
+          
+          float random(vec2 co) {
+            return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+          }
+          
+          void main() {
+            vec4 color = texture2D(tDiffuse, vUv);
+            
+            // Add film grain
+            float grain = (random(vUv + time) - 0.5) * grainIntensity;
+            color.rgb += grain;
+            
+            // Add scanlines
+            float scanline = sin(vUv.y * 1200.0) * 0.03;
+            color.rgb -= scanline;
+            
+            // Add TV static
+            float staticNoise = (random(vUv + time * 0.1) - 0.5) * 0.05;
+            color.rgb += staticNoise;
+            
+            // Vignette effect
+            float dist = distance(vUv, vec2(0.5));
+            float vignette = 1.0 - (dist * 0.3);
+            color.rgb *= vignette;
+            
+            gl_FragColor = color;
+          }
+        `
+      };
+
+      // Create blur filter shader
+      const blurShader = {
+        uniforms: {
+          tDiffuse: { value: null },
+          blurAmount: { value: 2.0 },
+          resolution: {
+            value: new THREE.Vector2(window.innerWidth, window.innerHeight)
+          }
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D tDiffuse;
+          uniform float blurAmount;
+          uniform vec2 resolution;
+          varying vec2 vUv;
+          
+          void main() {
+            vec2 texelSize = 1.0 / resolution;
+            vec4 color = vec4(0.0);
+            
+            // Simple box blur
+            for(int x = -2; x <= 2; x++) {
+              for(int y = -2; y <= 2; y++) {
+                vec2 offset = vec2(float(x), float(y)) * texelSize * blurAmount;
+                color += texture2D(tDiffuse, vUv + offset);
+              }
+            }
+            
+            color /= 25.0; // Average of 5x5 samples
+            gl_FragColor = color;
+          }
+        `
+      };
+
+      // Set up post-processing
+      const composer = new THREE.EffectComposer(renderer);
+      const renderPass = new THREE.RenderPass(scene, camera);
+      composer.addPass(renderPass);
+
+      const blurPass = new THREE.ShaderPass(blurShader);
+      composer.addPass(blurPass);
+
+      const colorfulPass = new THREE.ShaderPass(colorfulShader);
+      composer.addPass(colorfulPass);
+
+      const tvGrainPass = new THREE.ShaderPass(tvGrainShader);
+      composer.addPass(tvGrainPass);
+
+      // Time for shader animation
+      let time = 0;
+
+      // Animation loop
+      function animate() {
+        requestAnimationFrame(animate);
+
+        // Update time for shader animation
+        time += 0.01;
+        colorfulPass.uniforms.time.value = time;
+        tvGrainPass.uniforms.time.value = time;
+
+        // Rotate the loaded model if it exists
+        if (loadedModel) {
+          loadedModel.rotation.y += 0.0005; // Much slower rotation for GLTF models
+        }
+
+        // Subtle camera movement based on mouse position
+        const targetX = mouseX * 0.2; // Reduced sensitivity
+        const targetY = mouseY * 0.15; // Reduced sensitivity
+
+        camera.position.x += (targetX * 2 + 3 - camera.position.x) * 0.02;
+        camera.position.y += (targetY * 2 + 3 - camera.position.y) * 0.02;
+
+        // Always look at the center of the scene
+        camera.lookAt(0, 0, 0);
+
+        // Render with post-processing effects
+        composer.render();
+      }
+
+      // Handle window resize
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
+        // Update blur shader resolution
+        blurPass.uniforms.resolution.value.set(
+          window.innerWidth,
+          window.innerHeight
+        );
+      });
+
+      // Start the animation loop
+      animate();
+    </script>
+  </body>
+</html>
