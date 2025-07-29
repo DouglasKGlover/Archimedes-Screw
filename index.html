@@ -62,6 +62,62 @@
       #header h2 .bold {
         font-weight: bold;
       }
+
+      #blur-control {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 100;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 15px;
+        border-radius: 8px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      #blur-control label {
+        display: block;
+        color: black;
+        font-size: 12px;
+        margin-bottom: 8px;
+        font-weight: 500;
+      }
+
+      #blur-slider {
+        width: 120px;
+        height: 4px;
+        border-radius: 2px;
+        background: #ddd;
+        outline: none;
+        -webkit-appearance: none;
+      }
+
+      #blur-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #333;
+        cursor: pointer;
+        border: 2px solid white;
+      }
+
+      #blur-slider::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #333;
+        cursor: pointer;
+        border: 2px solid white;
+      }
+
+      #blur-value {
+        color: black;
+        font-size: 11px;
+        margin-top: 5px;
+        text-align: center;
+      }
     </style>
   </head>
   <body>
@@ -70,6 +126,19 @@
     <div id="header">
       <h1>Archimedes Screw</h1>
       <h2><span class="bold">Flow</span> like water, my friend</h2>
+    </div>
+
+    <div id="blur-control">
+      <label for="blur-slider">Blur Control</label>
+      <input
+        type="range"
+        id="blur-slider"
+        min="0"
+        max="50"
+        value="30"
+        step="1"
+      />
+      <div id="blur-value">30px</div>
     </div>
 
     <!-- Three.js CDN -->
@@ -406,6 +475,73 @@
 
       // Start the animation loop
       animate();
+
+      // Global function to control CSS blur filter from dev console
+      window.setBlur = function (value) {
+        const canvas = document.querySelector("#canvas-container canvas");
+        const slider = document.getElementById("blur-slider");
+        const valueDisplay = document.getElementById("blur-value");
+
+        if (canvas) {
+          // Parse the value to handle different input formats
+          let blurValue;
+          let numericValue;
+
+          if (typeof value === "string") {
+            blurValue = value;
+            numericValue = parseFloat(value.replace(/[^\d.]/g, ""));
+          } else if (typeof value === "number") {
+            blurValue = value + "px";
+            numericValue = value;
+          } else {
+            console.error(
+              'setBlur: Invalid value. Use a number (pixels) or string with units (e.g., "50px")'
+            );
+            return;
+          }
+
+          // Update the filter while preserving the invert filter
+          canvas.style.filter = `invert(1) blur(${blurValue})`;
+
+          // Update slider and display if they exist
+          if (
+            slider &&
+            !isNaN(numericValue) &&
+            numericValue >= 0 &&
+            numericValue <= 50
+          ) {
+            slider.value = numericValue;
+          }
+          if (valueDisplay) {
+            valueDisplay.textContent = blurValue;
+          }
+
+          console.log(`Blur filter set to: ${blurValue}`);
+        } else {
+          console.error("setBlur: Canvas element not found");
+        }
+      };
+
+      // Blur slider functionality
+      document.addEventListener("DOMContentLoaded", function () {
+        const slider = document.getElementById("blur-slider");
+        const valueDisplay = document.getElementById("blur-value");
+        const canvas = document.querySelector("#canvas-container canvas");
+
+        function updateBlur() {
+          const blurValue = slider.value + "px";
+          if (canvas) {
+            canvas.style.filter = `invert(1) blur(${blurValue})`;
+          }
+          valueDisplay.textContent = blurValue;
+        }
+
+        // Update blur when slider changes
+        slider.addEventListener("input", updateBlur);
+
+        // Initialize with current value
+        updateBlur();
+      });
     </script>
   </body>
 </html>
